@@ -1,3 +1,5 @@
+from serial import Serial
+
 QIK_GET_FIRMWARE_VERSION =          0x81
 QIK_GET_ERROR_BYTE =                0x82
 QIK_GET_CONFIGURATION_PARAMETER =   0x83
@@ -45,7 +47,7 @@ QIK_POLOLU_PROTOCOL_FIRST_BYTE =    0xAA
 
 
 class PololuQik:
-    def __init__(self, serial, resetPin, addr = 0x0A, multi_device = False):
+    def __init__(self, serial: Serial, resetPin, addr = 0x0A, multi_device = False):
 
         self.serial = serial
         self._resetPin = resetPin
