@@ -1,5 +1,4 @@
-from gpiozero import DigitalOutputDevice, DigitalInputDevice
-from serial import Serial
+import RPi.GPIO as GPIO
 
 QIK_GET_FIRMWARE_VERSION =          0x81
 QIK_GET_ERROR_BYTE =                0x82
@@ -42,53 +41,68 @@ QIK_CONFIG_MOTOR_M1_CURRENT_LIMIT_DIV_2 =       9
 QIK_CONFIG_MOTOR_M0_CURRENT_LIMIT_RESPONSE =    10
 QIK_CONFIG_MOTOR_M1_CURRENT_LIMIT_RESPONSE =    11
 
+# extra params
 
-class PololuQik(Serial):
-    def __init__(self, port, resetPin, speed = 9600):
-        super().__init__(port = port, baudrate = speed)
+QIK_POLOLU_PROTOCOL_FIRST_BYTE =    0xAA
 
-        DigitalOutputDevice(pin = resetPin, initial_value = False)
-        self._resetOut = DigitalInputDevice(pin = resetPin)
-        self.open()
-        self.write(0xAA)
+
+class PololuQik:
+    def __init__(self, serial, resetPin, addr = 0x0A, multi_device = False):
+
+        self.serial = serial
+        self._resetPin = resetPin
+        self._multi_device = multi_device
+        self._addr = addr
+
+    def turnOff(self):
+        self._resetPin.turnOff()
+
+    def turnOn(self):
+        self._resetPin.turnOn()
+
+    def setAddress(self, addr):
+        ret_val = self.setConfigurationParameter(QIK_CONFIG_DEVICE_ID, addr)
+        self._addr = addr
+        return ret_val
+
+    def read(self, size = 1):
+        return self.serial.read(size)
 
     def write(self, data):
+        cmd = bytearray()
+
         if type(data) != tuple:
-            return super().write(data)
-        for seg in data:
-            yield super().write(seg)
+            data = (data,)
+
+        if self._multi_device:
+            cmd.append(QIK_POLOLU_PROTOCOL_FIRST_BYTE)
+            cmd.append(self._addr)
+            cmd.append(data[0] & 0x7F)
+        else:
+            cmd.append(data[0])
+        cmd += bytearray(data[1:])
+        print(cmd)
+        return self.serial.write(cmd)
 
     def getFirmwareVersion(self):
-        #self.listen()
         self.write(QIK_GET_FIRMWARE_VERSION)
-        #while (self.available() < 1):
-        #    pass
         return self.read()
 
     def getErrors(self):
-        #self.listen()
         self.write(QIK_GET_ERROR_BYTE)
-        #while (self.available() < 1):
-        #    pass
         return self.read()
 
     def getConfigurationParameter(self, parameter):
-        #self.listen()
         cmd = QIK_GET_CONFIGURATION_PARAMETER, parameter
         self.write(cmd)
-        #while (self.available() < 1):
-        #    pass
         return self.read()
 
     def setConfigurationParameter(self, parameter, value):
-        #self.listen()
         cmd = QIK_SET_CONFIGURATION_PARAMETER, parameter, value, 0x55, 0x2A
         self.write(cmd)
-        #while (self.available() < 1):
-        #    pass
         return self.read()
 
-    def setM0Speed(self, speed):
+    def setM0Speed(self, speed: int):
         reverse = False
 
         if (speed < 0):
@@ -102,10 +116,10 @@ class PololuQik(Serial):
             cmd = QIK_MOTOR_M0_REVERSE_8_BIT if reverse else QIK_MOTOR_M0_FORWARD_8_BIT, speed - 128
         else:
             cmd = QIK_MOTOR_M0_REVERSE if reverse else QIK_MOTOR_M0_FORWARD, speed
-
+        
         self.write(cmd)
 
-    def setM1Speed(self, speed):
+    def setM1Speed(self, speed: int):
         reverse = False
 
         if (speed < 0):
@@ -123,15 +137,18 @@ class PololuQik(Serial):
 
         self.write(cmd)
 
-    def setSpeeds(self, m0Speed, m1Speed):
+    def setSpeeds(self, m0Speed:int, m1Speed:int):
         self.setM0Speed(m0Speed)
         self.setM1Speed(m1Speed)
+
+    def cleanup(self):
+        GPIO.cleanup()
 
 
 
 class PololuQik2s9v1(PololuQik):
-    def __init__(self, port, resetPin):
-        super().__init__(port, resetPin)
+    def __init__(self, serial, resetPin, addr = 0x0A, multi_device = False):
+        super().__init__(serial = serial, resetPin = resetPin, addr = addr, multi_device = multi_device)
 
     def setM0Coast(self):
         self.write(QIK_2S9V1_MOTOR_M0_COAST)
@@ -144,8 +161,8 @@ class PololuQik2s9v1(PololuQik):
         self.setM1Coast()
 
 class PololuQik2s15v9(PololuQik):
-    def __init__(self, port, resetPin):
-        super().__init__(port, resetPin)
+    def __init__(self, serial, resetPin, addr = 0x0A, multi_device = False):
+        super().__init__(serial = serial, resetPin = resetPin, addr = addr, multi_device = multi_device)
 
     def setM0Brake(self, brake):
         if (brake > 127):
@@ -166,17 +183,11 @@ class PololuQik2s15v9(PololuQik):
         self.setM1Brake(m1Brake)
 
     def getM0Current(self):
-        #self.listen()
         self.write(QIK_2S12V10_GET_MOTOR_M0_CURRENT)
-        #while (self.available() < 1):
-        #    pass
         return self.read()
 
     def getM1Current(self):
-        #self.listen()
         self.write(QIK_2S12V10_GET_MOTOR_M1_CURRENT)
-        #while (self.available() < 1):
-        #    pass
         return self.read()
 
     def getM0CurrentMilliamps(self):
@@ -186,17 +197,11 @@ class PololuQik2s15v9(PololuQik):
         return self.getM1Current() * 150
 
     def getM0Speed(self):
-        #self.listen()
         self.write(QIK_2S12V10_GET_MOTOR_M0_SPEED)
-        #while (self.available() < 1):
-        #    pass
         return self.read()
 
     def getM1Speed(self):
-        #self.listen()
         self.write(QIK_2S12V10_GET_MOTOR_M1_SPEED)
-        #while (self.available() < 1):
-        #    pass
         return self.read()
 
 PololuQik2s12v10 = PololuQik2s15v9
