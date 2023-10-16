@@ -1,5 +1,3 @@
-import RPi.GPIO as GPIO
-
 QIK_GET_FIRMWARE_VERSION =          0x81
 QIK_GET_ERROR_BYTE =                0x82
 QIK_GET_CONFIGURATION_PARAMETER =   0x83
@@ -140,10 +138,6 @@ class PololuQik:
     def setSpeeds(self, m0Speed:int, m1Speed:int):
         self.setM0Speed(m0Speed)
         self.setM1Speed(m1Speed)
-
-    def cleanup(self):
-        GPIO.cleanup()
-
 
 
 class PololuQik2s9v1(PololuQik):
