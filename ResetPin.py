@@ -12,5 +12,5 @@ class ResetPin:
     def turnOff(self):
         GPIO.output(self._pin_number, ~self._active_value)
 
-    def turnOff(self):
+    def turnOn(self):
         GPIO.output(self._pin_number, self._active_value)

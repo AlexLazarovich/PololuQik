@@ -81,7 +81,6 @@ class PololuQik:
         else:
             cmd.append(data[0])
         cmd += bytearray(data[1:])
-        print(cmd)
         return self.serial.write(cmd)
 
     def getFirmwareVersion(self):
